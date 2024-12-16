@@ -26,16 +26,12 @@ def process_link(link):
                 info['Creation Time'] = line.split(':', 1)[1].strip()
             elif 'Last edit date :' in line:
                 info['Last Modification'] = line.split(':', 1)[1].strip()
-            elif 'Public permissions :' in line:
-                info['Public Access'] = 'Yes' if 'reader' in line.lower() else 'No'
             elif 'Name :' in line:
                 info['Owner Name'] = line.split(':', 1)[1].strip()
             elif 'Email :' in line:
                 info['Owner Email'] = line.split(':', 1)[1].strip()
         
         # Статус документа
-        if 'Public Access' not in info:
-            info['Public Access'] = 'No'
         info['Status'] = 'OK'
         return info
 
@@ -55,17 +51,21 @@ def main():
     results = []
     for link in unique_links:
         info = process_link(link)
+        # Удаляем Public Access из словаря
+        info.pop('Public Access', None)
         results.append(info)
 
-    # Определяем заголовки для CSV-файла
-    fieldnames = set()
-    for result in results:
-        fieldnames.update(result.keys())
-    fieldnames = list(fieldnames)
+    # Определяем порядок столбцов
+    ordered_columns = ['Link', 'Owner Email', 'Creation Time', 'Last Modification']
+    # Добавляем остальные колонки
+    all_columns = set().union(*results)
+    for col in all_columns:
+        if col not in ordered_columns:
+            ordered_columns.append(col)
 
     # Запись в CSV
     with open('results.csv', 'w', newline='', encoding='utf-8') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer = csv.DictWriter(csvfile, fieldnames=ordered_columns)
         writer.writeheader()
         for result in results:
             writer.writerow(result)
