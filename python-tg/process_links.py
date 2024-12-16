@@ -45,11 +45,15 @@ def process_link(link):
 def main():
     # Читаем ссылки из файла
     with open('links.txt', 'r', encoding='utf-8') as f:
-        links = [line.strip() for line in f if line.strip()]
+        all_links = [line.strip() for line in f if line.strip()]
+    
+    # Удаляем дубликаты
+    unique_links = list(set(all_links))
+    print(f'Обнаружено {len(all_links)} ссылок. Уникальных ссылок: {len(unique_links)}.')
 
-    # Обрабатываем каждую ссылку
+    # Обрабатываем каждую уникальную ссылку
     results = []
-    for link in links:
+    for link in unique_links:
         info = process_link(link)
         results.append(info)
 
