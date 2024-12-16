@@ -1,43 +1,44 @@
 import subprocess
 import csv
-import re
 
 def process_link(link):
     try:
-        # Запускаем xeuledoc с передачей ссылки
+        # Запускаем xeuledoc
         result = subprocess.run(['xeuledoc', link], capture_output=True, text=True)
         output = result.stdout
         error_output = result.stderr
 
         info = {'Link': link}
 
-        # Проверяем, есть ли ошибки
+        # Проверка на ошибки
         if result.returncode != 0:
             info['Status'] = 'Error'
             info['Error'] = error_output.strip()
             return info
 
-        # Парсим вывод xeuledoc
+        # Парсим вывод
         lines = output.strip().split('\n')
         for line in lines:
             line = line.strip()
             if 'Document ID :' in line:
-                info['Document ID'] = line.split('Document ID :',1)[1].strip()
-            elif 'Title :' in line:
-                info['Title'] = line.split('Title :',1)[1].strip()
-            elif 'Author :' in line:
-                info['Author'] = line.split('Author :',1)[1].strip()
-            elif 'Creation Time :' in line:
-                info['Creation Time'] = line.split('Creation Time :',1)[1].strip()
-            elif 'Last Modification :' in line:
-                info['Last Modification'] = line.split('Last Modification :',1)[1].strip()
-            elif '[-]' in line:
-                info['Status'] = 'Error'
-                info['Error'] = line.strip('[-] ').strip()
-        # Если не было ошибок, статус OK
-        if 'Status' not in info:
-            info['Status'] = 'OK'
+                info['Document ID'] = line.split(':', 1)[1].strip()
+            elif 'Creation date :' in line:
+                info['Creation Time'] = line.split(':', 1)[1].strip()
+            elif 'Last edit date :' in line:
+                info['Last Modification'] = line.split(':', 1)[1].strip()
+            elif 'Public permissions :' in line:
+                info['Public Access'] = 'Yes' if 'reader' in line.lower() else 'No'
+            elif 'Name :' in line:
+                info['Owner Name'] = line.split(':', 1)[1].strip()
+            elif 'Email :' in line:
+                info['Owner Email'] = line.split(':', 1)[1].strip()
+        
+        # Статус документа
+        if 'Public Access' not in info:
+            info['Public Access'] = 'No'
+        info['Status'] = 'OK'
         return info
+
     except Exception as e:
         return {'Link': link, 'Status': 'Exception', 'Error': str(e)}
 
@@ -58,7 +59,7 @@ def main():
         fieldnames.update(result.keys())
     fieldnames = list(fieldnames)
 
-    # Сохраняем результаты в CSV-файл
+    # Запись в CSV
     with open('results.csv', 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
