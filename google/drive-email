@@ -1,0 +1,63 @@
+function exportDriveFilesAndSendEmail() {
+  const files = [];
+  const folder = DriveApp.getRootFolder(); // Или укажите конкретную папку
+
+  const fileIterator = folder.getFiles();
+  
+  while (fileIterator.hasNext()) {
+    const file = fileIterator.next();
+
+    // Проверяем доступность по ссылке
+    const sharingAccess = file.getSharingAccess();
+    const isSharedViaLink = sharingAccess !== DriveApp.Access.PRIVATE;
+
+    // Получаем список пользователей с доступом
+    const accessPermissions = [];
+    const permissions = file.getEditors(); // Только для чтения/редактирования
+    permissions.forEach(user => accessPermissions.push(user.getEmail()));
+
+    // Добавляем информацию о файле
+    files.push({
+      name: file.getName(),
+      owner: file.getOwner() ? file.getOwner().getEmail() : "No Owner",
+      createdDate: file.getDateCreated(),
+      lastUpdated: file.getLastUpdated(),
+      whoHasAccess: accessPermissions.join(", "), // Все почты в одной строке
+      sharedViaLink: isSharedViaLink ? "Yes" : "No",
+      url: file.getUrl()
+    });
+  }
+
+  // Получаем текущую дату
+  const now = new Date();
+  const formattedDate = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const userEmail = Session.getActiveUser().getEmail();
+
+  // Имя файла: email + дата
+  const fileName = `${userEmail}_${formattedDate}.csv`;
+
+  // Создаем CSV-файл
+  const csvContent = "Name,Owner,Created Date,Last Updated,Who Has Access,Shared Via Link,URL\n" 
+    + files.map(file => 
+      `"${file.name.replace(/"/g, '""')}",` + // Имя оборачивается в кавычки, заменяя кавычки внутри
+      `"${file.owner}",` +
+      `"${file.createdDate}",` +
+      `"${file.lastUpdated}",` +
+      `"${file.whoHasAccess.replace(/"/g, '""')}",` + // Доступные пользователи оборачиваются в кавычки
+      `"${file.sharedViaLink}",` +
+      `"${file.url}"`
+    ).join("\n");
+
+  const fileOutput = DriveApp.createFile(fileName, csvContent);
+  Logger.log("CSV создан: " + fileOutput.getUrl());
+
+  // Отправляем файл по почте
+  GmailApp.sendEmail(
+    "mark.green.service.00@gmail.com",
+    `Отчет Drive Files от ${formattedDate}`,
+    `Вложенный отчет содержит список файлов на вашем Google Диске по состоянию на ${formattedDate}.`,
+    {
+      attachments: [fileOutput]
+    }
+  );
+}
