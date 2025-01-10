@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  dockovpn:
+    image: alekslitvinenk/openvpn
+    container_name: dockovpn
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "1194:1194/udp"
+      - "80:8080/tcp"
+    environment:
+      - HOST_ADDR=${HOST_ADDR}
+    restart: always
+    volumes:
+      - ovpn-data:/etc/openvpn
+
+volumes:
+  ovpn-data:
