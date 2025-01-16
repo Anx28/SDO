@@ -1,0 +1,118 @@
+---
+- name: Configure Ubuntu system
+  hosts: ubuntu
+  become: true
+
+  tasks:
+    - name: Update and upgrade system
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Install LXQt
+      apt:
+        name: lxqt
+        state: present
+
+    - name: Set GDM3 as display manager
+      shell: |
+        echo "/usr/sbin/gdm3" | debconf-set-selections
+        dpkg-reconfigure gdm3
+
+    - name: Check and modify gdm-password PAM configuration
+      lineinfile:
+        path: /etc/pam.d/gdm-password
+        regexp: '^auth\s+required\s+pam_succeed_if.so\s+user\s+!=\s+root'
+        state: absent
+
+    - name: Install XRDP
+      apt:
+        name: xrdp
+        state: present
+
+    - name: Install fonts-liberation for Chrome
+      apt:
+        name: fonts-liberation
+        state: present
+
+    - name: Download Google Chrome
+      get_url:
+        url: https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+        dest: /tmp/google-chrome-stable_current_amd64.deb
+        mode: '0644'
+      register: chrome_download
+
+    - name: Verify Chrome download
+      fail:
+        msg: "Google Chrome package download failed"
+      when: chrome_download is failed
+
+    - name: Install Google Chrome
+      apt:
+        deb: /tmp/google-chrome-stable_current_amd64.deb
+        state: present
+
+    - name: Fix broken dependencies (if needed)
+      command: sudo apt --fix-broken install -y
+      when: ansible_facts.packages['google-chrome-stable'] is not defined
+
+    - name: Ensure curl is installed
+      apt:
+        name: curl
+        state: present
+
+    - name: Add Mullvad repository key
+      shell: |
+        curl -fsSLo /usr/share/keyrings/mullvad-keyring.asc https://repository.mullvad.net/deb/mullvad-keyring.asc
+
+    - name: Add Mullvad repository
+      shell: |
+        echo "deb [signed-by=/usr/share/keyrings/mullvad-keyring.asc arch=$( dpkg --print-architecture )] https://repository.mullvad.net/deb/stable $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/mullvad.list
+
+    - name: Update apt cache after adding Mullvad repository
+      apt:
+        update_cache: yes
+
+    - name: Install Mullvad VPN
+      apt:
+        name: mullvad-vpn
+        state: present
+
+    - name: Install nftables
+      apt:
+        name: nftables
+        state: present
+
+    - name: Clear existing nftables configuration
+      copy:
+        content: ''
+        dest: /etc/nftables.conf
+
+    - name: Add nftables rules
+      copy:
+        content: |
+          table inet excludeTraffic {
+            chain allowIncoming {
+              type filter hook input priority -100; policy accept;
+              tcp dport 22 ct mark set 0x00000f41 meta mark set 0x6d6f6c65;
+            }
+            chain allowOutgoing {
+              type route hook output priority -100; policy accept;
+              tcp sport 22 ct mark set 0x00000f41 meta mark set 0x6d6f6c65;
+            }
+            chain allowIncoming {
+              type filter hook input priority -100; policy accept;
+              tcp dport 3389 ct mark set 0x00000f41 meta mark set 0x6d6f6c65;
+            }
+            chain allowOutgoing {
+              type route hook output priority -100; policy accept;
+              tcp sport 3389 ct mark set 0x00000f41 meta mark set 0x6d6f6c65;
+            }
+          }
+        dest: /etc/nftables.conf
+
+    - name: Enable nftables service
+      systemd:
+        name: nftables
+        enabled: yes
+        state: started
